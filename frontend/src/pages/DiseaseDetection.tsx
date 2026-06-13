@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Upload, 
   Leaf, 
@@ -23,6 +23,9 @@ export const DiseaseDetection: React.FC<DiseaseDetectionProps> = ({ language }) 
   const [result, setResult] = useState<DiseaseResponse | null>(null);
   const [history, setHistory] = useState<DiseaseResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  // Stable ref — never re-created, so the file dialog always opens reliably
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const translations = {
     en: {
@@ -111,14 +114,34 @@ export const DiseaseDetection: React.FC<DiseaseDetectionProps> = ({ language }) 
     }
   };
 
+  const applyFile = useCallback((file: File) => {
+    // Revoke previous object URL to free memory
+    setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+    setSelectedFile(file);
+    setResult(null);
+    setError(null);
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setResult(null);
-      setError(null);
+      applyFile(e.target.files[0]);
+      // Reset so re-selecting the same file still fires onChange
+      e.target.value = '';
     }
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Drag-and-drop handlers
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = () => setIsDragging(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) applyFile(file);
   };
 
   const handleScan = async () => {
@@ -139,35 +162,42 @@ export const DiseaseDetection: React.FC<DiseaseDetectionProps> = ({ language }) 
   };
 
   // Quick testing using mock files
-  const triggerMockTest = async (diseaseName: string, fileNameKeyword: string) => {
+  const triggerMockTest = async (_diseaseName: string, fileNameKeyword: string) => {
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      // Create a dummy image blob (red square)
       const canvas = document.createElement('canvas');
-      canvas.width = 100;
-      canvas.height = 100;
+      canvas.width = 200;
+      canvas.height = 200;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = "#40966d";
-        ctx.fillRect(0, 0, 100, 100);
+        // Draw a simple leaf-like green gradient for mock
+        const grad = ctx.createRadialGradient(100, 100, 10, 100, 100, 100);
+        grad.addColorStop(0, '#4ade80');
+        grad.addColorStop(1, '#166534');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 200, 200);
       }
-      
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const mockFile = new File([blob], `${fileNameKeyword}_leaf.jpg`, { type: 'image/jpeg' });
-        setSelectedFile(mockFile);
-        setPreviewUrl(canvas.toDataURL());
-        
-        // Scan directly
-        const res = await api.detectDisease(mockFile, language);
-        setResult(res);
-        loadHistory();
-        setLoading(false);
-      }, 'image/jpeg');
+
+      await new Promise<void>((resolve, reject) => {
+        canvas.toBlob(async (blob) => {
+          try {
+            if (!blob) throw new Error('Canvas blob creation failed');
+            const mockFile = new File([blob], `${fileNameKeyword}_leaf.jpg`, { type: 'image/jpeg' });
+            setSelectedFile(mockFile);
+            setPreviewUrl(canvas.toDataURL());
+            const res = await api.detectDisease(mockFile, language);
+            setResult(res);
+            loadHistory();
+            resolve();
+          } catch (e) { reject(e); }
+        }, 'image/jpeg');
+      });
     } catch (err) {
-      setError("Mock testing failed. Connection to server lost.");
+      const message = err instanceof Error ? err.message : 'Mock testing failed. Connection to server lost.';
+      setError(message);
+    } finally {
       setLoading(false);
     }
   };
@@ -188,20 +218,47 @@ export const DiseaseDetection: React.FC<DiseaseDetectionProps> = ({ language }) 
         <div className="lg:col-span-5 space-y-6">
           <div className="glass-panel p-5 rounded-2xl flex flex-col items-center">
             <h3 className="font-bold text-slate-700 text-sm w-full mb-3 self-start">{t.uploadTitle}</h3>
-            
-            <label className="w-full flex flex-col items-center px-4 py-8 bg-slate-50 text-slate-400 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:bg-slate-100/50 hover:border-primary-400 transition-colors group">
+
+            {/* Hidden file input — lives outside the drop zone so re-renders never block the dialog */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/jpg,.jpeg,.jpg,.png"
+              onChange={handleFileChange}
+            />
+
+            {/* Drop zone — plain div triggers inputRef.click() on click */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFilePicker}
+              onKeyDown={(e) => e.key === 'Enter' && openFilePicker()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`w-full flex flex-col items-center px-4 py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 select-none
+                ${ isDragging
+                  ? 'border-primary-500 bg-primary-50 scale-[1.01]'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100/60 hover:border-primary-400'
+                }`}
+            >
               {previewUrl ? (
-                <img src={previewUrl} alt="Preview" className="h-44 object-contain rounded-lg shadow-sm" />
+                <div className="relative group/preview w-full flex flex-col items-center">
+                  <img src={previewUrl} alt="Preview" className="h-44 object-contain rounded-lg shadow-sm" />
+                  <span className="mt-2 text-[11px] font-semibold text-primary-600 opacity-0 group-hover/preview:opacity-100 transition-opacity">
+                    Click to change image
+                  </span>
+                </div>
               ) : (
-                <div className="flex flex-col items-center text-center space-y-2">
-                  <Upload className="h-10 w-10 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                <div className="flex flex-col items-center text-center space-y-2 text-slate-400">
+                  <Upload className={`h-10 w-10 transition-colors ${isDragging ? 'text-primary-500' : 'text-slate-300'}`} />
                   <span className="font-semibold text-slate-600 text-sm">{t.uploadClick}</span>
                   <span className="text-xs">{t.uploadDrag}</span>
                   <span className="text-xs text-slate-300 mt-2">{t.uploadSub}</span>
                 </div>
               )}
-              <input type="file" className="hidden" accept="image/jpeg,image/png,image/jpg,.jpeg,.jpg,.png" onChange={handleFileChange} />
-            </label>
+            </div>
 
             {selectedFile && (
               <div className="w-full mt-4 flex items-center justify-between p-3 bg-primary-50 rounded-xl text-primary-900 border border-primary-100">
