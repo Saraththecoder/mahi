@@ -1,0 +1,6 @@
+Soil Testing and Fertilizer Application Guidelines:
+Soil testing determines N-P-K levels and pH. Optimal pH for most field crops is 6.0 - 7.5.
+Nitrogen (N) promotes leaf growth; Phosphorus (P) enhances root development; Potassium (K) increases disease resistance.
+Acidic soils (pH < 5.5) require agricultural Lime (Calcium Carbonate) to raise pH.
+Alkaline soils (pH > 8.0) require Gypsum (Calcium Sulfate) to lower pH and displace sodium.
+Organic manure (10 tons/hectare) should be incorporated during primary tillage.

@@ -1,0 +1,5 @@
+ICAR Tomato Disease & Management Guide:
+Early Blight (Alternaria solani): Circular brown spots with concentric rings on older leaves. Spray Mancozeb 2.5g/L.
+Late Blight (Phytophthora infestans): Large water-soaked lesions under high humidity. Spray Metalaxyl + Mancozeb (0.2%).
+Bacterial Spot: Small dark greasy spots on leaves. Spray Copper Oxychloride (3g/L) + Streptocycline (100 ppm).
+Keep farm clean, remove weeds, and follow 3-year crop rotation with non-solanaceous crops.

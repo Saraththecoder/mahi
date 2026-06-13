@@ -1,0 +1,20 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+backend/temp_voice.wav
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.local
+
+# Misc
+.DS_Store
+*.log
+.qodo/
