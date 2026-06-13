@@ -24,7 +24,10 @@ async def detect_crop_disease(
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     # Call disease predictor service
-    prediction = predict_disease(contents, file.filename, lang)
+    try:
+        prediction = predict_disease(contents, file.filename, lang)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Disease prediction failed: {str(e)}")
     
     # Save record to MongoDB
     record_id = str(uuid.uuid4())

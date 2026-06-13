@@ -24,23 +24,24 @@ app = FastAPI(
 )
 
 # CORS configuration
+# Always allow local dev + the known production Vercel frontend
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
+    "https://mahi-nine-sigma.vercel.app",
 ]
 
+# Allow additional origins via FRONTEND_URL env var (comma-separated)
 frontend_url = os.getenv("FRONTEND_URL")
 if frontend_url:
-    origins_list = [origin.strip() for origin in frontend_url.split(",")]
-    allowed_origins.extend(origins_list)
-else:
-    allowed_origins = ["*"]
+    extra_origins = [origin.strip() for origin in frontend_url.split(",")]
+    allowed_origins.extend(extra_origins)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True if allowed_origins != ["*"] else False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,4 +1,6 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api/v1';
+// In production (Vercel), VITE_API_BASE_URL must be set to the backend URL e.g. https://mahi-ul1i.onrender.com
+// In local dev, leave it unset — Vite proxy handles /api routing to localhost:8000
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '') + '/api/v1';
 
 export interface DiseaseResponse {
   _id: string;
@@ -113,7 +115,14 @@ export const api = {
       method: 'POST',
       body: formData,
     });
-    if (!res.ok) throw new Error('Disease detection failed');
+    if (!res.ok) {
+      let detail = 'Disease detection failed';
+      try {
+        const errBody = await res.json();
+        if (errBody?.detail) detail = errBody.detail;
+      } catch {}
+      throw new Error(detail);
+    }
     return res.json();
   },
 

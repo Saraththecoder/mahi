@@ -130,7 +130,8 @@ export const DiseaseDetection: React.FC<DiseaseDetectionProps> = ({ language }) 
       setResult(res);
       loadHistory();
     } catch (err) {
-      setError("Failed to classify image. Ensure the backend server is running.");
+      const message = err instanceof Error ? err.message : 'Failed to classify image. Ensure the backend server is running.';
+      setError(message);
       console.error(err);
     } finally {
       setLoading(false);
