@@ -5,7 +5,8 @@ pydantic-settings>=2.0.0
 motor>=3.1.2
 pymongo>=4.3.3
 dnspython>=2.3.0
-tensorflow>=2.12.0
+# tensorflow is optional (no Python 3.12 wheels; app falls back to OpenCV + hash-based disease detection)
+# Install manually if needed: pip install tensorflow==2.15.0 (on Python <=3.11 only)
 opencv-python-headless>=4.7.0.72
 scikit-learn>=1.2.2
 numpy>=1.22.0
