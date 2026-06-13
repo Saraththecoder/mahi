@@ -32,74 +32,71 @@ try:
 except ImportError:
     pass
 
-# Mock responses for voice queries
-VOICE_MOCK_RESPONSES = {
-    "te": {
-        "text": "మీరు పత్తి పంటను నాటుతున్నట్లయితే, దయచేసి జూన్ మొదటి వారంలో విత్తనాలు వేయండి. హెక్టారుకు 120 కేజీల నత్రజని వాడండి.",
-        "query": "పత్తి పంట సాగు విధానం ఏమిటి?"
-    },
-    "hi": {
-        "text": "यदि आप कपास की खेती कर रहे हैं, तो कृपया जून के पहले सप्ताह में बुवाई करें। प्रति हेक्टेयर 120 किलोग्राम नाइट्रोजन का उपयोग करें।",
-        "query": "कपास की खेती कैसे करें?"
-    },
-    "en": {
-        "text": "For cotton crop, sow in the first week of June. Use 120 kg/ha of nitrogen fertilizer split into 3 doses.",
-        "query": "How to cultivate cotton?"
-    }
+# Mock responses for voice queries - these are ONLY used as last resort
+# when BOTH Google STT and Whisper fail and audio cannot be transcribed
+VOICE_FALLBACK_GREETING = {
+    "te": "నమస్తే",  # Returns 'hello' which triggers greeting handler
+    "hi": "नमस्ते",
+    "en": "hello"
 }
 
 def transcribe_audio(audio_bytes: bytes, language: str = "en") -> str:
     """
     Transcribes audio bytes to text in the requested language.
-    Tries Google Speech Recognition (online, free, no keys needed), falls back to Whisper, then mock text.
+    Tries Google Speech Recognition (online, free), falls back to Whisper, then a safe greeting fallback.
     """
     lang_code_map = {
         "en": "en-US",
         "te": "te-IN",
         "hi": "hi-IN"
     }
-    
-    # 1. Try SpeechRecognition with Google Web Speech API (Free & Online)
+
+    # 1. Try SpeechRecognition with Google Web Speech API
     if sr is not None:
+        # Browsers record as webm/ogg — try to convert to wav using pydub if available
+        wav_bytes = audio_bytes
+        try:
+            from pydub import AudioSegment
+            audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes))
+            wav_io = io.BytesIO()
+            audio_segment.export(wav_io, format="wav")
+            wav_bytes = wav_io.getvalue()
+            logger.info("Audio converted to WAV using pydub.")
+        except Exception as conv_err:
+            logger.info(f"pydub not available or conversion failed: {conv_err}. Trying raw bytes as WAV.")
+
         try:
             r = sr.Recognizer()
-            # Convert audio bytes into an AudioFile object
-            # Note: speech_recognition requires WAV/AIFF/FLAC format.
-            # We wrap the bytes in a BytesIO buffer.
-            audio_file = io.BytesIO(audio_bytes)
+            audio_file = io.BytesIO(wav_bytes)
             with sr.AudioFile(audio_file) as source:
                 audio_data = r.record(source)
                 text = r.recognize_google(audio_data, language=lang_code_map.get(language, "en-US"))
                 logger.info(f"Google STT transcribed ({language}): {text}")
                 return text
         except Exception as e:
-            logger.warning(f"Google STT failed or audio not in WAV format: {e}. Trying Whisper or mock...")
-            
+            logger.warning(f"Google STT failed: {e}. Trying Whisper...")
+
     # 2. Try Whisper if installed locally
     if whisper is not None:
         try:
-            # Whisper requires a file path, so we save to a temporary file
-            temp_filename = "temp_voice.wav"
+            temp_filename = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "temp_voice.wav")
             with open(temp_filename, "wb") as f:
                 f.write(audio_bytes)
-                
             model = whisper.load_model("base")
             result = model.transcribe(temp_filename, language=language)
-            
-            # Clean up
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
-                
             text = result.get("text", "").strip()
             logger.info(f"Whisper STT transcribed ({language}): {text}")
-            return text
+            if text:
+                return text
         except Exception as e:
             logger.error(f"Whisper STT failed: {e}")
-            
-    # 3. Fallback: return a mock query based on language
-    mock_data = VOICE_MOCK_RESPONSES.get(language, VOICE_MOCK_RESPONSES["en"])
-    logger.info(f"Returning mock transcription for {language}: {mock_data['query']}")
-    return mock_data["query"]
+
+    # 3. Safe fallback: return a greeting so the chatbot responds with "Hello! How can I help?"
+    #    instead of always injecting a cotton question
+    logger.info(f"STT failed for {language}, returning greeting fallback.")
+    return VOICE_FALLBACK_GREETING.get(language, "hello")
 
 def generate_speech(text: str, language: str = "en") -> bytes:
     """

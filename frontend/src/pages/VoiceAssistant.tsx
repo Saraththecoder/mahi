@@ -158,52 +158,44 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ language }) => {
     }
   };
 
-  // Keyboard text submit simulation
+  // Keyboard text submit
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!keyboardQuery.trim()) return;
+    const query = keyboardQuery.trim();
     setLoading(true);
-    setTranscript(keyboardQuery);
+    setTranscript(query);
     setKeyboardQuery('');
     setResponse('');
     setAudioUrl(null);
     try {
-      // Create a dummy audio blob representing silent mic input
-      const canvas = document.createElement('canvas');
-      const dummyBlob = new Blob([new Uint8Array(100)], { type: 'audio/wav' });
-      
-      // Since backend transcribes, we mock text queries through chatbot and synthesize speech:
-      const chatRes = await api.queryChatbot(keyboardQuery, null, language);
-      setResponse(chatRes.bot_response);
+      // 1. Get chatbot text response
+      const chatRes = await api.queryChatbot(query, null, language);
+      const botText = chatRes.bot_response;
+      setResponse(botText);
 
-      // Synthesize TTS for it
-      // Create a simulated vocal audio response
-      const voiceInputBlob = new Blob([chatRes.bot_response], { type: 'text/plain' });
-      // We call voice assistant process with query to get speech
-      // To bypass mic transcription error we simulate it
-      const res = await api.processVoice(dummyBlob, language);
-      // Let's replace mock response text with our actual text response
-      setResponse(chatRes.bot_response);
-      
-      const audioBytes = atob(res.audio_base64);
-      const arrayBuffer = new ArrayBuffer(audioBytes.length);
-      const uint8Array = new Uint8Array(arrayBuffer);
-      for (let i = 0; i < audioBytes.length; i++) {
-        uint8Array[i] = audioBytes.charCodeAt(i);
-      }
-      const playBlob = new Blob([uint8Array], { type: 'audio/mp3' });
-      const playUrl = URL.createObjectURL(playBlob);
-      setAudioUrl(playUrl);
-      
-      setTimeout(() => {
-        if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = playUrl;
-          audioPlayerRef.current.play().catch(e => console.log(e));
+      // 2. Synthesize speech for the bot response via TTS endpoint
+      const ttsRes = await api.synthesizeSpeech(botText, language);
+      if (ttsRes.audio_base64) {
+        const audioBytes = atob(ttsRes.audio_base64);
+        const arrayBuffer = new ArrayBuffer(audioBytes.length);
+        const uint8Array = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < audioBytes.length; i++) {
+          uint8Array[i] = audioBytes.charCodeAt(i);
         }
-      }, 100);
+        const playBlob = new Blob([uint8Array], { type: 'audio/mp3' });
+        const playUrl = URL.createObjectURL(playBlob);
+        setAudioUrl(playUrl);
+        setTimeout(() => {
+          if (audioPlayerRef.current) {
+            audioPlayerRef.current.src = playUrl;
+            audioPlayerRef.current.play().catch(e => console.log(e));
+          }
+        }, 100);
+      }
     } catch (err) {
       console.error(err);
-      setResponse("Failed to synthesize response.");
+      setResponse('Failed to get a response. Please try again.');
     } finally {
       setLoading(false);
     }

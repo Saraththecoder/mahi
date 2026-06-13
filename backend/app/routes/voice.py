@@ -1,11 +1,29 @@
 from fastapi import APIRouter, UploadFile, File, Query, HTTPException
+from pydantic import BaseModel
 import base64
 import uuid
 from datetime import datetime
 from app.db import get_collection
-from app.services.voice_processing import process_voice_query
+from app.services.voice_processing import process_voice_query, generate_speech
 
 router = APIRouter(prefix="/voice", tags=["Voice Assistant"])
+
+
+class TTSRequest(BaseModel):
+    text: str
+    language: str = "en"
+
+
+@router.post("/tts")
+async def text_to_speech(body: TTSRequest):
+    """Synthesize text directly to speech (no STT step). Used for typed queries."""
+    if not body.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+    speech_bytes = generate_speech(body.text, body.language)
+    return {
+        "audio_base64": base64.b64encode(speech_bytes).decode("utf-8")
+    }
+
 
 @router.post("/process")
 async def voice_assistant_process(

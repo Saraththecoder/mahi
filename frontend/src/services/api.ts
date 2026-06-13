@@ -257,5 +257,16 @@ export const api = {
     });
     if (!res.ok) throw new Error('Voice processing failed');
     return res.json();
+  },
+
+  // Text-to-Speech only (no STT) — used for typed queries
+  async synthesizeSpeech(text: string, lang: string): Promise<{ audio_base64: string }> {
+    const res = await fetch(`${API_BASE_URL}/voice/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, language: lang }),
+    });
+    if (!res.ok) throw new Error('TTS synthesis failed');
+    return res.json();
   }
 };
